@@ -205,7 +205,7 @@ async function initTerrain(terrainData) {
   camera.position.x = 2000;
   controls.update();
 
-  let gui = new GUI();
+  // let gui = new GUI();
 }
 
 async function init() {
@@ -255,7 +255,7 @@ async function init() {
   bulbLight.position.set(0, 1500, 0);
   bulbLight.castShadow = true;
   bulbMat.emissiveIntensity = bulbLight.intensity / Math.pow(0.02, 2.0);
-  scene.add(bulbLight);
+  // scene.add(bulbLight);
 
   ambientLight = new THREE.AmbientLight(0x323232, 3);
   scene.add(ambientLight);
@@ -271,7 +271,7 @@ async function init() {
 
   // Stats
   stats = new Stats();
-  container.appendChild(stats.dom);
+  // container.appendChild(stats.dom);
 
   // postprocessing
 
