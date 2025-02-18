@@ -9,6 +9,8 @@ import { loadGeoTIFF } from "../../comun/utils";
 
 import img1 from "../../modelos/MDT25-ETRS89-H29-0157-3-COB2.tif";
 
+const EN_3D = true;
+
 let container;
 let camera, controls, scene, renderer;
 let mesh;
@@ -76,7 +78,9 @@ async function initTerrain(terrainData) {
 
   // Create mesh
   mesh = new THREE.Mesh(geometry, material);
-  scene.add(mesh);
+  if (EN_3D) {
+    scene.add(mesh);
+  }
 
   // Add lines of steepest descent
   const positions = geometry.attributes.position.array;
@@ -102,8 +106,7 @@ async function initTerrain(terrainData) {
 
         linePoints.push(
           positions[idx * 3],
-          positions[idx * 3 + 1], // En 3D
-          // 2000, // En 2D
+          EN_3D ? positions[idx * 3 + 1] : 0,
           positions[idx * 3 + 2]
         );
         // lineColors.push(1, 0, 0);
