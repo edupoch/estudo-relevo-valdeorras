@@ -76,18 +76,12 @@ async function initTerrain(terrainData) {
 
   // Create mesh
   mesh = new THREE.Mesh(geometry, material);
-  //scene.add(mesh);
+  // scene.add(mesh);
 
   // Add lines of steepest descent
   const positions = geometry.attributes.position.array;
   const width = terrainData.width;
   const height = terrainData.height;
-
-  // Create line material
-  const lineMaterial = new LineMaterial({
-    color: 0x000000,
-    linewidth: 3,
-  });
 
   const espacioEntreLineas = 2;
 
@@ -95,8 +89,11 @@ async function initTerrain(terrainData) {
   for (let x = 0; x < width; x += espacioEntreLineas) {
     for (let z = 0; z < height; z += espacioEntreLineas) {
       const linePoints = [];
+      const lineColors = [];
       let currentX = x;
       let currentZ = z;
+
+      let bajaPorZ = null;
 
       // Generate line following steepest descent
       for (let step = 0; step < 50; step++) {
@@ -106,9 +103,11 @@ async function initTerrain(terrainData) {
         linePoints.push(
           positions[idx * 3],
           // positions[idx * 3 + 1], // En 3D
-          0, // En 2D
+          2000, // En 2D
           positions[idx * 3 + 2]
         );
+        // lineColors.push(1, 0, 0);
+        lineColors.push(0, 0, 0);
 
         // Find steepest downhill direction
         let steepestX = currentX;
@@ -124,6 +123,10 @@ async function initTerrain(terrainData) {
             const nidx = nz * width + nx;
             const drop = positions[idx * 3 + 1] - positions[nidx * 3 + 1];
             if (drop > steepestDrop) {
+              if (bajaPorZ === null) {
+                bajaPorZ = currentZ >= nz;
+              }
+
               steepestDrop = drop;
               steepestX = nx;
               steepestZ = nz;
@@ -144,8 +147,18 @@ async function initTerrain(terrainData) {
         // const lineGeometry = new THREE.BufferGeometry().setFromPoints(
         //   linePoints
         // );
+
+        // Create line material
+        const lineMaterial = new LineMaterial({
+          color: 0xffffff,
+          linewidth: bajaPorZ ? 3 : 1,
+          // linewidth: 3,
+          vertexColors: true,
+        });
+
         const lineGeometry = new LineGeometry();
         lineGeometry.setPositions(linePoints);
+        lineGeometry.setColors(lineColors);
         const line = new Line2(lineGeometry, lineMaterial);
         line.computeLineDistances();
         line.scale.set(1, 1, 1);
@@ -156,7 +169,7 @@ async function initTerrain(terrainData) {
 
   // Adjust camera
   camera.position.x = 0;
-  camera.position.y = 800;
+  camera.position.y = 3000;
   camera.position.z = 0;
   camera.lookAt(0, 0, 0);
   controls.update();
