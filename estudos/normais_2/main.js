@@ -1,6 +1,10 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
+import { Line2 } from "three/addons/lines/Line2.js";
+import { LineMaterial } from "three/addons/lines/LineMaterial.js";
+import { LineGeometry } from "three/addons/lines/LineGeometry.js";
+
 import { loadGeoTIFF } from "../../comun/utils";
 
 import img1 from "../../modelos/MDT25-ETRS89-H29-0157-3-COB2.tif";
@@ -80,7 +84,10 @@ async function initTerrain(terrainData) {
   const height = terrainData.height;
 
   // Create line material
-  const lineMaterial = new THREE.LineBasicMaterial({ color: 0x000000 });
+  const lineMaterial = new LineMaterial({
+    color: 0x000000,
+    linewidth: 3,
+  });
 
   const espacioEntreLineas = 2;
 
@@ -96,13 +103,12 @@ async function initTerrain(terrainData) {
         const idx = currentZ * width + currentX;
         if (idx >= positions.length / 3) break;
 
-        const pos = new THREE.Vector3(
+        linePoints.push(
           positions[idx * 3],
           // positions[idx * 3 + 1], // En 3D
           0, // En 2D
           positions[idx * 3 + 2]
         );
-        linePoints.push(pos);
 
         // Find steepest downhill direction
         let steepestX = currentX;
@@ -131,18 +137,27 @@ async function initTerrain(terrainData) {
       }
 
       if (linePoints.length > 1) {
-        const lineGeometry = new THREE.BufferGeometry().setFromPoints(
-          linePoints
-        );
-        const line = new THREE.Line(lineGeometry, lineMaterial);
+        // const curve = new THREE.SplineCurve(linePoints);
+        // const points = curve.getPoints(50);
+        // const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
+
+        // const lineGeometry = new THREE.BufferGeometry().setFromPoints(
+        //   linePoints
+        // );
+        const lineGeometry = new LineGeometry();
+        lineGeometry.setPositions(linePoints);
+        const line = new Line2(lineGeometry, lineMaterial);
+        line.computeLineDistances();
+        line.scale.set(1, 1, 1);
         scene.add(line);
       }
     }
   }
 
   // Adjust camera
-  camera.position.y = 8000;
   camera.position.x = 0;
+  camera.position.y = 800;
+  camera.position.z = 0;
   camera.lookAt(0, 0, 0);
   controls.update();
 }
