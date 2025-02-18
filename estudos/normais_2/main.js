@@ -76,7 +76,7 @@ async function initTerrain(terrainData) {
 
   // Create mesh
   mesh = new THREE.Mesh(geometry, material);
-  // scene.add(mesh);
+  scene.add(mesh);
 
   // Add lines of steepest descent
   const positions = geometry.attributes.position.array;
@@ -92,8 +92,8 @@ async function initTerrain(terrainData) {
       const lineColors = [];
       let currentX = x;
       let currentZ = z;
-
-      let bajaPorZ = null;
+      let primerX = x;
+      let primerZ = z;
 
       // Generate line following steepest descent
       for (let step = 0; step < 50; step++) {
@@ -102,12 +102,11 @@ async function initTerrain(terrainData) {
 
         linePoints.push(
           positions[idx * 3],
-          // positions[idx * 3 + 1], // En 3D
-          2000, // En 2D
+          positions[idx * 3 + 1], // En 3D
+          // 2000, // En 2D
           positions[idx * 3 + 2]
         );
         // lineColors.push(1, 0, 0);
-        lineColors.push(0, 0, 0);
 
         // Find steepest downhill direction
         let steepestX = currentX;
@@ -123,10 +122,6 @@ async function initTerrain(terrainData) {
             const nidx = nz * width + nx;
             const drop = positions[idx * 3 + 1] - positions[nidx * 3 + 1];
             if (drop > steepestDrop) {
-              if (bajaPorZ === null) {
-                bajaPorZ = currentZ >= nz;
-              }
-
               steepestDrop = drop;
               steepestX = nx;
               steepestZ = nz;
@@ -134,9 +129,16 @@ async function initTerrain(terrainData) {
           }
         }
 
+        lineColors.push(0, 0, 0);
+
         if (steepestDrop <= 0) break;
         currentX = steepestX;
         currentZ = steepestZ;
+      }
+
+      let bajaPorZ = false;
+      if (currentX > primerX && currentZ > primerZ) {
+        bajaPorZ = true;
       }
 
       if (linePoints.length > 1) {
