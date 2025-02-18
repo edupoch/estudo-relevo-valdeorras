@@ -1,28 +1,47 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import Stats from "three/addons/libs/stats.module.js";
-import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
-import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
-import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 
-import { HalftonePass } from "three/addons/postprocessing/HalftonePass.js";
-import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
-
-import { NormalShader } from "./NormalShader.js";
-
-import { GUI } from "dat.gui";
+import { Line2 } from "three/addons/lines/Line2.js";
+import { LineMaterial } from "three/addons/lines/LineMaterial.js";
+import { LineGeometry } from "three/addons/lines/LineGeometry.js";
 
 import { loadGeoTIFF } from "../../comun/utils";
 
 import img1 from "../../modelos/MDT25-ETRS89-H29-0157-3-COB2.tif";
 
-let container, stats;
+const EN_3D = true;
+
+let container;
 let camera, controls, scene, renderer;
 let mesh;
-let bulbLight, bulbMat;
-let ambientLight;
-let cubeMat;
-let composer;
+let minElevation, maxElevation;
+
+function generateTexture(data, width, height) {
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+
+  const context = canvas.getContext("2d");
+  const image = context.createImageData(width, height);
+  const imageData = image.data;
+
+  for (let i = 0, j = 0, l = imageData.length; i < l; i += 4, j++) {
+    const normalized = (data[j] - minElevation) / (maxElevation - minElevation);
+
+    /* For Grayscale */
+    // Define a gradient from blue (low) to green (mid) to red (high)
+    const r = Math.min(255, Math.max(0, Math.round(255 * normalized)));
+    const g = Math.min(255, Math.max(0, Math.round(255 * normalized)));
+    const b = Math.min(255, Math.max(0, Math.round(255 * normalized)));
+    imageData[i] = r; // R
+    imageData[i + 1] = g; // G
+    imageData[i + 2] = b; // B
+    imageData[i + 3] = 255;
+  }
+
+  context.putImageData(image, 0, 0);
+  return canvas;
+}
 
 async function initTerrain(terrainData) {
   // Clear previous scene
@@ -46,166 +65,119 @@ async function initTerrain(terrainData) {
   }
 
   const count = geometry.attributes.position.count;
-  // Crear un array para almacenar el "y" del punto en x + 1.0
-  const esBajadaPendienteArray = new Float32Array(count);
 
-  function getAdjacentY(vertices, index, offset) {
-    let y = vertices[index * 3 + 1];
-    let foundY = y; // Valor por defecto si no encuentra
+  // Generate texture
+  let texture = new THREE.CanvasTexture(
+    generateTexture(terrainData.data, terrainData.width, terrainData.height)
+  );
+  texture.wrapS = THREE.ClampToEdgeWrapping;
+  texture.wrapT = THREE.ClampToEdgeWrapping;
+  texture.colorSpace = THREE.SRGBColorSpace;
 
-    let adjacentY = vertices[index * 3 + 1 + offset];
-    if (adjacentY !== undefined) {
-      foundY = adjacentY;
-    }
+  let material = new THREE.MeshBasicMaterial({ map: texture });
 
-    return foundY;
+  // Create mesh
+  mesh = new THREE.Mesh(geometry, material);
+  if (EN_3D) {
+    scene.add(mesh);
   }
 
-  function to1D(x, y, z, xMax, yMax) {
-    return z * xMax * yMax + y * xMax + x;
-  }
+  // Add lines of steepest descent
+  const positions = geometry.attributes.position.array;
+  const width = terrainData.width;
+  const height = terrainData.height;
 
-  function to3D(idx, xMax, yMax) {
-    let z = Math.floor(idx / (xMax * yMax));
-    idx -= z * xMax * yMax;
-    let y = Math.floor(idx / xMax);
-    let x = idx % xMax;
-    return { x, y, z };
-  }
+  const espacioEntreLineas = 2;
 
-  for (let i = 0; i < count; i++) {
-    let y = vertices[i * 3 + 1];
-    let coordenadas = to3D(i, terrainData.width, terrainData.height);
-    // console.log(i, coordenadas.x, coordenadas.y, coordenadas.z);
+  // Sample points to start lines (not too dense)
+  for (let x = 0; x < width; x += espacioEntreLineas) {
+    for (let z = 0; z < height; z += espacioEntreLineas) {
+      const linePoints = [];
+      const lineColors = [];
+      let currentX = x;
+      let currentZ = z;
+      let primerX = x;
+      let primerZ = z;
 
-    let salto = 3;
+      // Generate line following steepest descent
+      for (let step = 0; step < 50; step++) {
+        const idx = currentZ * width + currentX;
+        if (idx >= positions.length / 3) break;
 
-    let adjacente1 = to1D(
-      coordenadas.x + salto,
-      coordenadas.y,
-      coordenadas.z,
-      terrainData.width,
-      terrainData.height
-    );
-    let yAdjacente1 = vertices[adjacente1 * 3 + 1];
+        linePoints.push(
+          positions[idx * 3],
+          EN_3D ? positions[idx * 3 + 1] : 0,
+          positions[idx * 3 + 2]
+        );
+        // lineColors.push(1, 0, 0);
 
-    let adjacente2 = to1D(
-      coordenadas.x - salto,
-      coordenadas.y,
-      coordenadas.z,
-      terrainData.width,
-      terrainData.height
-    );
-    let yAdjacente2 = vertices[adjacente2 * 3 + 1];
+        // Find steepest downhill direction
+        let steepestX = currentX;
+        let steepestZ = currentZ;
+        let steepestDrop = 0;
 
-    let adjacente3 = to1D(
-      coordenadas.x,
-      coordenadas.y + salto,
-      coordenadas.z,
-      terrainData.width,
-      terrainData.height
-    );
-    let yAdjacente3 = vertices[adjacente3 * 3 + 1];
+        for (let dx = -1; dx <= 1; dx++) {
+          for (let dz = -1; dz <= 1; dz++) {
+            const nx = currentX + dx;
+            const nz = currentZ + dz;
+            if (nx < 0 || nx >= width || nz < 0 || nz >= height) continue;
 
-    let adjacente4 = to1D(
-      coordenadas.x,
-      coordenadas.y - salto,
-      coordenadas.z,
-      terrainData.width,
-      terrainData.height
-    );
-    let yAdjacente4 = vertices[adjacente4 * 3 + 1];
+            const nidx = nz * width + nx;
+            const drop = positions[idx * 3 + 1] - positions[nidx * 3 + 1];
+            if (drop > steepestDrop) {
+              steepestDrop = drop;
+              steepestX = nx;
+              steepestZ = nz;
+            }
+          }
+        }
 
-    // Excluímos los puntos más altos y los más bajos
-    esBajadaPendienteArray[i] = 0;
-    const margen = 10;
-    if (
-      (y < yAdjacente1 - margen || y < yAdjacente2 - margen) &&
-      !(y < yAdjacente1 + margen && y < yAdjacente2 + margen)
-    ) {
-      if (y < yAdjacente1 - 25) {
-        esBajadaPendienteArray[i] = 1;
-      } else {
-        esBajadaPendienteArray[i] = 2;
+        lineColors.push(0, 0, 0);
+
+        if (steepestDrop <= 0) break;
+        currentX = steepestX;
+        currentZ = steepestZ;
+      }
+
+      let bajaPorZ = false;
+      if (currentX > primerX && currentZ > primerZ) {
+        bajaPorZ = true;
+      }
+
+      if (linePoints.length > 1) {
+        // const curve = new THREE.SplineCurve(linePoints);
+        // const points = curve.getPoints(50);
+        // const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
+
+        // const lineGeometry = new THREE.BufferGeometry().setFromPoints(
+        //   linePoints
+        // );
+
+        // Create line material
+        const lineMaterial = new LineMaterial({
+          color: 0xffffff,
+          linewidth: bajaPorZ ? 3 : 1,
+          // linewidth: 3,
+          vertexColors: true,
+        });
+
+        const lineGeometry = new LineGeometry();
+        lineGeometry.setPositions(linePoints);
+        lineGeometry.setColors(lineColors);
+        const line = new Line2(lineGeometry, lineMaterial);
+        line.computeLineDistances();
+        line.scale.set(1, 1, 1);
+        scene.add(line);
       }
     }
   }
 
-  geometry.setAttribute(
-    "esBajadaPendiente",
-    new THREE.BufferAttribute(esBajadaPendienteArray, 1)
-  );
-
-  let terrainUniforms = {
-    min: { value: new THREE.Vector3() },
-    max: { value: new THREE.Vector3() },
-    lineThickness: { value: 1 },
-  };
-
-  let m = new THREE.MeshLambertMaterial({
-    color: 0xeeeeee,
-    wireframe: false,
-    side: THREE.DoubleSide,
-    onBeforeCompile: (shader) => {
-      shader.uniforms.boxMin = terrainUniforms.min;
-      shader.uniforms.boxMax = terrainUniforms.max;
-      shader.uniforms.lineThickness = terrainUniforms.lineThickness;
-      shader.vertexShader = `
-        varying vec3 vPos;
-        ${shader.vertexShader}
-      `.replace(
-        `#include <begin_vertex>`,
-        `#include <begin_vertex>
-          vPos = position;
-        `
-      );
-      //console.log(shader.vertexShader);
-      shader.fragmentShader = `
-        uniform vec3 boxMin;
-        uniform vec3 boxMax;
-        uniform float lineThickness;
-        varying vec3 vPos;
-        ${shader.fragmentShader}
-      `.replace(
-        `#include <dithering_fragment>`,
-        `
-          // http://madebyevan.com/shaders/grid/
-          float coord = vPos.y / 50.;
-          float grid = abs(fract(coord - 0.5) - 0.5) / fwidth(coord) / lineThickness;
-          float line = min(grid, 1.0);
-          
-          //  vec3 colorLinea = mix(vec3(1, 1, 1),vec3(0, 0, 0), vPos.y);
-          vec3 colorLinea = vec3(0, 0, 0);
-          
-          vec3 colorFragmento = mix(colorLinea, gl_FragColor.rgb, line);
-          gl_FragColor = vec4( colorFragmento, opacity);
-        `
-      );
-      //console.log(shader.fragmentShader);
-    },
-  });
-  m.defines = { USE_UV: "" };
-  m.extensions = { derivatives: true };
-
-  const normalShader = NormalShader;
-  const shaderMaterial = new THREE.ShaderMaterial({
-    uniforms: normalShader.uniforms,
-    vertexShader: normalShader.vertexShader,
-    fragmentShader: normalShader.fragmentShader,
-  });
-
-  // Create mesh
-  mesh = new THREE.Mesh(geometry, shaderMaterial);
-  scene.add(mesh);
-
   // Adjust camera
-  controls.target.y =
-    terrainData.data[Math.floor(terrainData.data.length / 2)] || 0;
-  camera.position.y = controls.target.y + 2000;
-  camera.position.x = 2000;
+  camera.position.x = 0;
+  camera.position.y = 3000;
+  camera.position.z = 0;
+  camera.lookAt(0, 0, 0);
   controls.update();
-
-  // let gui = new GUI();
 }
 
 async function init() {
@@ -222,15 +194,7 @@ async function init() {
 
   // Scene
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xbfd1e5);
-
-  // Cubo para hacer debug con la luz
-  // cubeMat = new THREE.MeshStandardMaterial();
-  // const boxGeometry = new THREE.BoxGeometry(500, 500, 500);
-  // const boxMesh = new THREE.Mesh(boxGeometry, cubeMat);
-  // boxMesh.position.set(-350, 1500, 0);
-  //   boxMesh.castShadow = true;
-  //   scene.add(boxMesh);
+  scene.background = new THREE.Color(0xffffff);
 
   // Camera
   camera = new THREE.PerspectiveCamera(
@@ -239,26 +203,6 @@ async function init() {
     10,
     20000
   );
-
-  // LIGHTS
-
-  bulbLight = new THREE.PointLight(0xffffff, 5000000, 5000, 2);
-
-  bulbMat = new THREE.MeshStandardMaterial({
-    emissive: 0xffffee,
-    emissiveIntensity: 1,
-    color: 0x000000,
-  });
-  // Debug de posición de la luz
-  const bulbGeometry = new THREE.SphereGeometry(100, 16, 8);
-  bulbLight.add(new THREE.Mesh(bulbGeometry, bulbMat));
-  bulbLight.position.set(0, 1500, 0);
-  bulbLight.castShadow = true;
-  bulbMat.emissiveIntensity = bulbLight.intensity / Math.pow(0.02, 2.0);
-  // scene.add(bulbLight);
-
-  ambientLight = new THREE.AmbientLight(0x323232, 3);
-  scene.add(ambientLight);
 
   // Controls
   controls = new OrbitControls(camera, renderer.domElement);
@@ -269,46 +213,19 @@ async function init() {
   // Event listeners
   window.addEventListener("resize", onWindowResize);
 
-  // Stats
-  stats = new Stats();
-  // container.appendChild(stats.dom);
-
-  // postprocessing
-
-  composer = new EffectComposer(renderer);
-  composer.addPass(new RenderPass(scene, camera));
-
-  const params = {
-    shape: 1,
-    radius: 4,
-    rotateR: Math.PI / 12,
-    rotateB: (Math.PI / 12) * 2,
-    rotateG: (Math.PI / 12) * 3,
-    scatter: 1,
-    blending: 1,
-    blendingMode: 1,
-    greyscale: true,
-    disable: false,
-  };
-  const customPass = new HalftonePass(
-    window.innerWidth,
-    window.innerHeight,
-    params
-  );
-  // renderer.toneMapping = THREE.ReinhardToneMapping;
-  // renderer.toneMappingExposure = Math.pow(0.68, 5.0); // to allow for very bright scenes.
-  // renderer.shadowMap.enabled = true;
-  // composer.addPass(customPass);
-
-  // const normalShader = NormalShader;
-  // const normalPass = new ShaderPass(normalShader);
-  // composer.addPass(normalPass);
-
-  const outputPass = new OutputPass();
-  composer.addPass(outputPass);
-
   try {
     const terrainData = await loadGeoTIFF(img1);
+
+    // Normalize elevation data
+    minElevation = terrainData.data.reduce(
+      (min, val) => Math.min(min, val),
+      Infinity
+    );
+    maxElevation = terrainData.data.reduce(
+      (max, val) => Math.max(max, val),
+      -Infinity
+    );
+
     await initTerrain(terrainData);
   } catch (error) {
     console.error("Error loading GeoTIFF:", error);
@@ -322,17 +239,11 @@ function onWindowResize() {
 }
 
 function animate() {
-  const time = Date.now() * 0.0005;
-  bulbLight.position.y = Math.cos(time) * 250 + 1250;
-
   render();
-
-  stats.update();
 }
 
 function render() {
-  // renderer.render(scene, camera);
-  composer.render();
+  renderer.render(scene, camera);
 }
 
 // Initialize the scene

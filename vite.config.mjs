@@ -15,8 +15,8 @@ export default defineConfig({
       input: {
         main: resolve(__dirname, "index.html"),
         ascii: resolve(__dirname, "estudos/ascii/index.html"),
+        linas: resolve(__dirname, "estudos/linas/index.html"),
         normais: resolve(__dirname, "estudos/normais/index.html"),
-        normais_2: resolve(__dirname, "estudos/normais_2/index.html"),
         semitonos: resolve(__dirname, "estudos/semitonos/index.html"),
       },
     },
