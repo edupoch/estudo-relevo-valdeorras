@@ -7,7 +7,7 @@ import { LineGeometry } from "three/addons/lines/LineGeometry.js";
 
 import { loadGeoTIFF } from "../../comun/utils";
 
-import img1 from "../../modelos/MDT25-ETRS89-H29-0157-3-COB2.tif";
+import img1 from "../../modelos/MDT25-ETRS89-H29-0190-3-COB2.tif";
 
 const EN_3D = true;
 const CON_MESH = false;
