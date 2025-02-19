@@ -10,6 +10,7 @@ import { loadGeoTIFF } from "../../comun/utils";
 import img1 from "../../modelos/MDT25-ETRS89-H29-0157-3-COB2.tif";
 
 const EN_3D = true;
+const CON_MESH = false;
 
 let container;
 let camera, controls, scene, renderer;
@@ -78,7 +79,7 @@ async function initTerrain(terrainData) {
 
   // Create mesh
   mesh = new THREE.Mesh(geometry, material);
-  if (EN_3D) {
+  if (EN_3D && CON_MESH) {
     scene.add(mesh);
   }
 
