@@ -35,7 +35,7 @@ const modelos = [
 const CON_EFECTO = 1;
 const CON_COLOR = 1;
 const CON_TAILWIND = 0;
-const CON_MOVIMIENTO = 1;
+const CON_MOVIMIENTO = 0;
 const CON_CARACTERES_FIJOS = 1;
 const DEBUG = 0;
 
@@ -328,7 +328,7 @@ let fuente = "courier new, monospace";
 // giroInicial = 0;
 // modeloCargado = 8;
 // nombrePaleta = "red";
-// hue = HUE_CORPORATIVO;
+hue = HUE_CORPORATIVO;
 // caracteres = " .oxOX";
 // caracteres = " .orsveadl";
 // caracteres = " .:-=+*#%@";

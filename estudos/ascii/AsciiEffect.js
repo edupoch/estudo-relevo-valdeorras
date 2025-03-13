@@ -301,10 +301,10 @@ class AsciiEffect {
                     ((255 - iRed) * nSaltosAnimacion) / maxSaltosAnimacion;
                   iGreen =
                     iGreen +
-                    ((0 - iGreen) * nSaltosAnimacion) / maxSaltosAnimacion;
+                    ((255 - iGreen) * nSaltosAnimacion) / maxSaltosAnimacion;
                   iBlue =
                     iBlue +
-                    ((0 - iBlue) * nSaltosAnimacion) / maxSaltosAnimacion;
+                    ((255 - iBlue) * nSaltosAnimacion) / maxSaltosAnimacion;
                 }
               }
             }
